@@ -101,5 +101,10 @@ class HomeAutomation:
             schedule.run_pending()
 
 
+def main():
+    home_automation = HomeAutomation()
+    home_automation.start()
+
+
 if __name__ == '__main__':
-    HomeAutomation().start()
+    main()

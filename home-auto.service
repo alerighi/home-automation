@@ -1,0 +1,9 @@
+[Unit]
+Description=run home automations
+Requires=mosquitto.service
+
+[Service]
+ExecStart=/usr/local/bin/home-auto
+
+[Install]
+WantedBy=multi-user.target
