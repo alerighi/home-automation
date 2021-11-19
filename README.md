@@ -1,6 +1,6 @@
 # home-auto
 
-I was bored of apps that didn't work reliably, cloud systems that don't work without internet, or systems like HomeAsistant that are too complex (to me) to setup.
+I was bored of apps that don't work reliably, cloud systems that have latency and don't work without internet, or systems like HomeAsistant that are too complex (to me) to setup.
 
 Built mostly in two evenings, so the code is not that great. I share it mainly for the Gnome extension code since I didn't find many examples.
 
