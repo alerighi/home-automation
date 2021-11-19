@@ -1,0 +1,8 @@
+{
+  "name": "HomeAutomation",
+  "description": "Automate your home",
+  "uuid": "homeautomation@alerighi.it",
+  "shell-version": [
+    "41"
+  ]
+}
