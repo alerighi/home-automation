@@ -11,6 +11,7 @@ setup(
     install_requires=[
         'schedule',
         'paho_mqtt',
+        'flask',
     ],
     packages=['home_auto'],
     entry_points={

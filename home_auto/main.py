@@ -2,41 +2,50 @@
 
 import json
 import schedule
+import random
+import threading
 
+from flask import Flask, request, jsonify
 from paho.mqtt.client import Client, MQTTMessage
 
-
+WEB_HOST = '0.0.0.0'
+WEB_PORT = 8080
 HOST = '192.168.1.200'
 PORT = 1883
 USERNAME = 'shelly'
 PASSWORD = 'shelly'
-CLIENT_ID = 'home-auto-python'
+CLIENT_ID = 'home-auto-python-' + random.randbytes(6).hex()
 
 LIGHTS = {
     'camera': {
         'device': 'camera',
         'relay': '0',
         'version': 1,
+        'state': -1,
     },
     'armadio': {
         'device': 'camera',
         'relay': '1',
         'version': 1,
+        'state': -1,
     },
     'ufficio': {
         'device': 'ufficio',
         'relay': '0',
         'version': 1,
+        'state': -1,
     },
     'scale': {
         'device': 'ufficio',
         'relay': '1',
         'version': 1,
+        'state': -1,
     },
     'bagno': {
         'device': 'bagno',
         'relay': '0',
         'version': 2,
+        'state': -1,
     }
 }
 
@@ -61,6 +70,18 @@ class HomeAutomation:
             self.last_button_2_state = int(msg.payload)
             self.device_toggle(LIGHTS['ufficio'])
 
+        # collect state from MQTT to align to physical switch action
+        if msg.topic == 'shellies/ufficio/relay/0':
+            LIGHTS['ufficio']['state'] = int(msg.payload == b'on')
+        if msg.topic == 'shellies/ufficio/relay/1':
+            LIGHTS['scale']['state'] = int(msg.payload == b'on')
+        if msg.topic == 'shellies/camera/relay/0':
+            LIGHTS['camera']['state'] = int(msg.payload == b'on')
+        if msg.topic == 'shellies/camera/relay/1':
+            LIGHTS['armadio']['state'] = int(msg.payload == b'on')
+        if msg.topic == 'shellies/bagno/status/switch:0':
+            LIGHTS['bagno']['state'] = int(json.loads(msg.payload)['output'])
+
     def device_on_off(self, device, on: bool):
         if device['version'] == 1:
             self.client.publish(
@@ -68,6 +89,7 @@ class HomeAutomation:
         if device['version'] == 2:
             self.client.publish(f"shellies/{device['device']}/rpc", json.dumps(
                 {"id": 123, "src": "user_1", "method": "Switch.Set", "params": {"id": device['relay'], "on": on}}), qos=1)
+        device['state'] = int(on)
 
     def device_toggle(self, device):
         if device['version'] == 1:
@@ -76,14 +98,17 @@ class HomeAutomation:
         if device['version'] == 2:
             self.client.publish(f"shellies/{device['device']}/rpc", json.dumps(
                 {"id": 123, "src": "user_1", "method": "Switch.Toggle", "params": {"id": device['relay']}}), qos=1)
+        device['state'] = int(not device['state'])
 
     def all_off(self):
         for device in LIGHTS.values():
             self.device_on_off(device, False)
+            device['state'] = 0
 
     def all_on(self):
         for device in LIGHTS.values():
             self.device_on_off(device, True)
+            device['state'] = 1
 
     def start(self):
         self.client.connect(host=HOST, port=PORT, keepalive=60)
@@ -101,9 +126,29 @@ class HomeAutomation:
             schedule.run_pending()
 
 
+home_automation = HomeAutomation()
+app = Flask(__name__)
+
+
+@app.route('/light')
+def light():
+    if 'on' in request.args and 'light' in request.args:
+        light = request.args['light']
+        on = request.args['on']
+
+        if on == 'true' or on == '1':
+            home_automation.device_on_off(LIGHTS[light], True)
+        elif on == 'false' or on == '0':
+            home_automation.device_on_off(LIGHTS[light], False)
+        elif on == 'toggle':
+            home_automation.device_toggle(LIGHTS[light])
+
+    return jsonify(LIGHTS)
+
+
 def main():
-    home_automation = HomeAutomation()
-    home_automation.start()
+    threading.Thread(target=lambda: home_automation.start()).start()
+    app.run(host=WEB_HOST, port=WEB_PORT)
 
 
 if __name__ == '__main__':
