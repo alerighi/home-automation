@@ -4,14 +4,15 @@ import json
 import schedule
 import random
 import threading
+import urllib.parse
 
-from flask import Flask, request, jsonify
+from http.server import HTTPServer, BaseHTTPRequestHandler
 from paho.mqtt.client import Client, MQTTMessage
 
 WEB_HOST = '0.0.0.0'
 WEB_PORT = 8080
-HOST = '192.168.1.200'
-PORT = 1883
+MQTT_HOST = '127.0.0.1'
+MQTT_PORT = 1883
 USERNAME = 'shelly'
 PASSWORD = 'shelly'
 CLIENT_ID = 'home-auto-python-' + random.randbytes(6).hex()
@@ -111,7 +112,7 @@ class HomeAutomation:
             device['state'] = 1
 
     def start(self):
-        self.client.connect(host=HOST, port=PORT, keepalive=60)
+        self.client.connect(host=MQTT_HOST, port=MQTT_PORT, keepalive=60)
         self.client.subscribe('#')
         self.client.publish('home-auto/events',
                             json.dumps({'event': 'started'}))
@@ -127,28 +128,37 @@ class HomeAutomation:
 
 
 home_automation = HomeAutomation()
-app = Flask(__name__)
 
 
-@app.route('/light')
-def light():
-    if 'on' in request.args and 'light' in request.args:
-        light = request.args['light']
-        on = request.args['on']
+class HomeAutomationHandler(BaseHTTPRequestHandler):
+    def do_GET(self):
+        url = urllib.parse.urlparse(self.path)
+        args = urllib.parse.parse_qs(url.query)
 
-        if on == 'true' or on == '1':
-            home_automation.device_on_off(LIGHTS[light], True)
-        elif on == 'false' or on == '0':
-            home_automation.device_on_off(LIGHTS[light], False)
-        elif on == 'toggle':
-            home_automation.device_toggle(LIGHTS[light])
+        if url.path == '/light':
+            if 'on' in args and 'light' in args:
+                light = args['light'][0]
+                on = args['on'][0]
 
-    return jsonify(LIGHTS)
+                if on == 'true' or on == '1':
+                    home_automation.device_on_off(LIGHTS[light], True)
+                elif on == 'false' or on == '0':
+                    home_automation.device_on_off(LIGHTS[light], False)
+                elif on == 'toggle':
+                    home_automation.device_toggle(LIGHTS[light])
+
+            self.send_response(200)
+            self.send_header('Content-type', 'application/json')
+            self.end_headers()
+            self.wfile.write(json.dumps(LIGHTS).encode('utf-8'))
+        else:
+            self.send_response(404)
+            self.end_headers()
 
 
 def main():
     threading.Thread(target=lambda: home_automation.start()).start()
-    app.run(host=WEB_HOST, port=WEB_PORT)
+    HTTPServer((WEB_HOST, WEB_PORT), HomeAutomationHandler).serve_forever()
 
 
 if __name__ == '__main__':
