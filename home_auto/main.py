@@ -1,13 +1,20 @@
 #!/usr/bin/env python3
 
+import os
 import json
 import schedule
 import random
 import threading
 import urllib.parse
+import logging
 
+from logging.handlers import SysLogHandler
 from http.server import HTTPServer, BaseHTTPRequestHandler
 from paho.mqtt.client import Client, MQTTMessage
+
+
+logger = logging.getLogger('home-automation')
+logger.setLevel(logging.DEBUG)
 
 WEB_HOST = '0.0.0.0'
 WEB_PORT = 8080
@@ -60,7 +67,7 @@ class HomeAutomation:
         self.last_button_2_state = False
 
     def on_mqtt_message(self, client: Client, userdata, msg: MQTTMessage):
-        print(msg.topic + " " + str(msg.payload))
+        logger.debug(msg.topic + " " + str(msg.payload))
         if msg.topic == 'shellies/i3/input/0' and msg.payload == b'1' and (self.last_button_1_state == False):
             self.last_button_1_state = True
             self.all_on()
@@ -159,6 +166,43 @@ class HomeAutomationHandler(BaseHTTPRequestHandler):
 def main():
     threading.Thread(target=lambda: home_automation.start()).start()
     HTTPServer((WEB_HOST, WEB_PORT), HomeAutomationHandler).serve_forever()
+
+
+def daemon():
+    pid = os.fork()
+    if pid < 0:
+        raise RuntimeError('fork error')
+    elif pid > 0:
+        print(pid)
+        exit(0)
+
+    # now I'm in the child process
+
+    # reset umask
+    os.umask(0)
+
+    # change current directory
+    os.chdir('/')
+
+    # create a new session
+    os.setsid()
+
+    # close stdin, stdout and stderr
+    os.close(0)
+    os.close(1)
+    os.close(2)
+
+    # setup logger
+    logger.addHandler(SysLogHandler(address='/dev/log'))
+    logger.info('started daemon')
+
+    # start daemon
+    try:
+        main()
+    except Exception as e:
+        logger.error('error starting daemon')
+        logger.error(e)
+        exit(1)
 
 
 if __name__ == '__main__':

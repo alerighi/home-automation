@@ -69,6 +69,7 @@ const Indicator = GObject.registerClass(
 class Extension {
   constructor(uuid) {
     this._uuid = uuid
+    this.timeout = null
   }
 
   enable() {
@@ -80,7 +81,7 @@ class Extension {
       .then((state) => this._indicator.setLightState(state))
       .catch(console.error)
 
-    Mainloop.timeout_add_seconds(POLL_INTERVAL_SEC, () => {
+    this.timeout = Mainloop.timeout_add_seconds(POLL_INTERVAL_SEC, () => {
       // get current state
       setLight()
         .then((state) => this._indicator.setLightState(state))
@@ -94,6 +95,10 @@ class Extension {
   disable() {
     this._indicator.destroy()
     this._indicator = null
+    if (this.timeout != null) {
+      Mainloop.source_remove(this.timeout);
+    }
+    this.timeout = null
   }
 }
 

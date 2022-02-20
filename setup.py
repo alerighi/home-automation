@@ -15,7 +15,8 @@ setup(
     packages=['home_auto'],
     entry_points={
         'console_scripts': [
-            'home-auto=home_auto.main:main'
+            'home-auto=home_auto.main:main',
+            'home-autod=home_auto.main:daemon',
         ]
     }
 )
